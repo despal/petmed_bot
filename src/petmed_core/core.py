@@ -22,6 +22,7 @@ from petmed_core.models import (
 )
 from petmed_core.timeutil import (
     INEXACT_REPEAT,
+    OVERDUE_GRACE,
     UTC,
     as_utc,
     care_day_bounds,
@@ -1171,13 +1172,15 @@ class Core:
             for step in day.steps:
                 if step.status != "pending":
                     continue
-                if step.time_accuracy == "exact" and now > _aware(step.planned_at):
+                # Скидка OVERDUE_GRACE: иначе tick раз в минуту помечает exact
+                # overdue раньше, чем scheduled успевает стать due и уйти.
+                if step.time_accuracy == "exact" and now > _aware(step.planned_at) + OVERDUE_GRACE:
                     step.status = "overdue"
                     self._cancel_notifications(step)
                     continue
                 if step.time_accuracy == "inexact" and step.slot:
                     end = slot_end_at(day.plan_date, step.slot, house.schedule_timezone)
-                    if end is not None and now >= end:
+                    if end is not None and now >= end + OVERDUE_GRACE:
                         step.status = "overdue"
                         self._cancel_notifications(step)
 

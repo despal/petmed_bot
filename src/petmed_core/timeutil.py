@@ -21,6 +21,12 @@ SLOT_END = {
 
 INEXACT_REPEAT = timedelta(minutes=60)
 
+# Период цикла бота (tick). Просрочка exact/слота ждёт столько × OVERDUE_GRACE_TICKS,
+# чтобы scheduled успел стать due и уйти в Telegram.
+TICK_INTERVAL = timedelta(minutes=1)
+OVERDUE_GRACE_TICKS = 1
+OVERDUE_GRACE = TICK_INTERVAL * OVERDUE_GRACE_TICKS
+
 
 def parse_tz(name: str) -> ZoneInfo:
     try:

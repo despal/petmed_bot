@@ -19,8 +19,9 @@ from aiogram.types import (
 from petmed_bot.delivery import DeliveryLoop, TelegramSendError
 from petmed_bot.texts import BTN_APP, BTN_DONE, reminder_text
 from petmed_core import Core, create_session
+from petmed_core.timeutil import TICK_INTERVAL
 
-TICK_SECONDS = 60
+TICK_SECONDS = int(TICK_INTERVAL.total_seconds())
 
 
 def done_callback_data(notification_id: int, step_id: int) -> str:

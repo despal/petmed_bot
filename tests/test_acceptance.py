@@ -141,22 +141,32 @@ def test_5_window_overdue_at_slot_end(core):
     owner, house, sever, jackie, rex, now = setup_house(core)
     morning_chain(core, owner, house, sever, jackie, rex, now)
     core.tick(now)
-    core.tick(bkk(SAT, 13, 0))
-    care = core.get_care_day(owner.id, house.id, bkk(SAT, 13, 0))
+    # скидка 1×TICK на конец слота: в 13:00 ещё не overdue
+    core.tick(bkk(SAT, 13, 1))
+    care = core.get_care_day(owner.id, house.id, bkk(SAT, 13, 1))
     for title in ("еда утром", "Антепсин", "Альмагель"):
         assert step_named(care, title).status == "overdue"
     due = [n for n in core.get_notifications(house_id=house.id) if n.status == "due"]
     assert due == []
 
 
-def test_6_exact_overdue_immediately(core):
+def test_6_exact_overdue_after_grace(core):
+    """Exact: due в пределах скидки на tick; overdue только после planned + OVERDUE_GRACE."""
     owner, house, sever, jackie, rex, now = setup_house(core)
     morning_chain(core, owner, house, sever, jackie, rex, now)
     core.tick(now)
     care = core.get_care_day(owner.id, house.id, now)
     core.mark_step(owner.id, step_named(care, "Антепсин").id, "done", bkk(SAT, 8, 35))
-    core.tick(bkk(SAT, 10, 36))
-    care = core.get_care_day(owner.id, house.id, bkk(SAT, 10, 36))
+    # еда → 10:35 exact; через 30 с после плана — ещё pending, пуш due
+    core.tick(bkk(SAT, 10, 35, 30))
+    care = core.get_care_day(owner.id, house.id, bkk(SAT, 10, 35, 30))
+    food = step_named(care, "еда утром")
+    assert food.status == "pending"
+    notes = core.get_notifications(step_id=food.id)
+    assert any(n.kind == "exact_once" and n.status == "due" for n in notes)
+    # после скидки 1×TICK_INTERVAL (1 мин) — overdue
+    core.tick(bkk(SAT, 10, 36, 1))
+    care = core.get_care_day(owner.id, house.id, bkk(SAT, 10, 36, 1))
     assert step_named(care, "еда утром").status == "overdue"
     assert step_named(care, "Альмагель").status == "overdue"
 
@@ -303,8 +313,8 @@ def test_11_care_day_boundary(core):
     owner, house, sever, jackie, rex, now = setup_house(core)
     morning_chain(core, owner, house, sever, jackie, rex, now)
     core.tick(now)
-    core.tick(bkk(SAT, 13, 0))
-    sat_care = core.get_care_day(owner.id, house.id, bkk(SAT, 13, 0))
+    core.tick(bkk(SAT, 13, 1))
+    sat_care = core.get_care_day(owner.id, house.id, bkk(SAT, 13, 1))
     sat_ids = {s.id: s.status for s in sat_care.steps}
     assert all(status == "overdue" for status in sat_ids.values())
 

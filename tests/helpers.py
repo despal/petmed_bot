@@ -7,8 +7,8 @@ SUN = 13
 MON = 14
 
 
-def bkk(day: int, hour: int, minute: int = 0) -> datetime:
-    return datetime(2026, 9, day, hour, minute, tzinfo=BKK)
+def bkk(day: int, hour: int, minute: int = 0, second: int = 0) -> datetime:
+    return datetime(2026, 9, day, hour, minute, second, tzinfo=BKK)
 
 
 def step_named(care, title: str):
