@@ -187,7 +187,14 @@ export function DayGrid({
         {laid.map(({ step, top, height, col, cols }) => {
           const widthPct = 100 / cols
           const color = colorForAppointment(step.appointment_id)
-          const closed = step.status === 'done' || step.status === 'skipped'
+          const statusClass =
+            step.status === 'done'
+              ? ' status-done'
+              : step.status === 'skipped'
+                ? ' status-skipped'
+                : step.status === 'overdue'
+                  ? ' status-overdue'
+                  : ''
           const time = formatStepTime(
             step.planned_local,
             step.time_accuracy,
@@ -200,7 +207,7 @@ export function DayGrid({
             <button
               key={step.id}
               type="button"
-              className={`step-card${closed ? ' closed' : ''}`}
+              className={`step-card${statusClass}`}
               style={{
                 top,
                 height,
@@ -210,6 +217,21 @@ export function DayGrid({
               }}
               onClick={() => onOpenStep(step.id)}
             >
+              {step.status === 'done' && (
+                <span className="step-card-mark" aria-label="выполнено">
+                  <IconCheck />
+                </span>
+              )}
+              {step.status === 'skipped' && (
+                <span className="step-card-mark" aria-label="пропущено">
+                  <IconSkip />
+                </span>
+              )}
+              {step.status === 'overdue' && (
+                <span className="step-card-mark mark-overdue" aria-label="просрочено">
+                  <IconOverdue />
+                </span>
+              )}
               <div className="title">{step.title}</div>
               <div className="meta">{time}</div>
               {!narrow && names && <div className="meta">{names}</div>}
@@ -218,6 +240,44 @@ export function DayGrid({
         })}
       </div>
     </div>
+  )
+}
+
+function IconCheck() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path
+        d="M3.2 8.2 L6.6 11.5 L12.8 4.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function IconSkip() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path
+        d="M3.5 8 H12.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+/** Спокойная точка — просрочено, ещё не закрыто */
+function IconOverdue() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <circle cx="8" cy="8" r="3.2" fill="currentColor" />
+    </svg>
   )
 }
 
