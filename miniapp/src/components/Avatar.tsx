@@ -1,9 +1,8 @@
-import { AVATAR_KEYS, avatarLabel } from '../data/avatars'
+import { AVATAR_KEYS } from '../data/avatars'
 
-const HUES = [
-  200, 140, 30, 280, 170, 340, 220, 50, 90, 310, 15, 190, 260, 70, 120, 0, 230,
-  160, 45, 300,
-]
+function avatarSrc(key: string): string {
+  return `/avatars/${key}.png`
+}
 
 export function AvatarBadge({
   avatarKey,
@@ -13,21 +12,13 @@ export function AvatarBadge({
   size?: number
 }) {
   const key = avatarKey && AVATAR_KEYS.includes(avatarKey) ? avatarKey : 'img01'
-  const idx = AVATAR_KEYS.indexOf(key)
-  const hue = HUES[idx] ?? 200
   return (
     <span
       className="tab-avatar"
-      style={{
-        width: size,
-        height: size,
-        fontSize: size < 36 ? 9 : 12,
-        background: `hsl(${hue} 35% 42%)`,
-        color: '#fff',
-      }}
+      style={{ width: size, height: size }}
       title={key}
     >
-      {avatarLabel(key)}
+      <img src={avatarSrc(key)} alt="" width={size} height={size} draggable={false} />
     </span>
   )
 }

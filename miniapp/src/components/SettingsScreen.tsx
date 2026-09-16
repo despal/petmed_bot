@@ -163,6 +163,29 @@ export function SettingsScreen({
           </select>
         </div>
       </section>
+
+      <section className="settings-section">
+        <h3>О приложении</h3>
+        <p className="muted about-credits">
+          Иконки животных:{' '}
+          <a
+            href="https://www.flaticon.com/authors/smalllikeart"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            smalllikeart / Flaticon
+          </a>
+          {' '}и{' '}
+          <a
+            href="https://www.flaticon.com/authors/magnific"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Magnific / Flaticon
+          </a>
+          .
+        </p>
+      </section>
     </div>
   )
 }
