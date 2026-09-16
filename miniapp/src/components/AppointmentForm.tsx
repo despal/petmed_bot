@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AnimalView, AppointmentView } from '../types'
 
 export type AppointmentSavePayload = {
@@ -32,9 +32,6 @@ export function AppointmentForm({
 }) {
   const editing = Boolean(appointment)
   const liveAnimals = animals.filter((a) => !a.archived)
-  const liveAnchors = appointments.filter(
-    (a) => !a.archived && a.id !== appointment?.id,
-  )
 
   const [title, setTitle] = useState(appointment?.title ?? '')
   const [kind, setKind] = useState<AppointmentView['kind']>(
@@ -67,6 +64,31 @@ export function AppointmentForm({
     appointment?.offset_minutes?.toString() ?? '30',
   )
   const [error, setError] = useState<string | null>(null)
+
+  // Якоря: живые шаблоны дома, где есть хотя бы один из выбранных участников
+  // (личные и общие). Чужие персональные и архив — скрыты. Себя — нет.
+  const liveAnchors = useMemo(
+    () =>
+      appointments.filter(
+        (a) =>
+          !a.archived &&
+          a.id !== appointment?.id &&
+          a.animal_ids.some((id) => selected.includes(id)),
+      ),
+    [appointments, appointment?.id, selected],
+  )
+
+  useEffect(() => {
+    if (anchorId && !liveAnchors.some((a) => String(a.id) === anchorId)) {
+      setAnchorId('')
+    }
+  }, [anchorId, liveAnchors])
+
+  useEffect(() => {
+    if (!editing && kind === 'relative' && liveAnchors.length === 0) {
+      setKind('window')
+    }
+  }, [editing, kind, liveAnchors.length])
 
   const toggleAnimal = (id: number) => {
     if (editing) return
@@ -175,7 +197,7 @@ export function AppointmentForm({
                 <option value="">Выберите…</option>
                 {liveAnchors.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.title}
+                    {anchorOptionLabel(a, animals, appointments)}
                   </option>
                 ))}
               </select>
@@ -307,4 +329,42 @@ function kindRu(k: AppointmentView['kind']): string {
   if (k === 'fixed') return 'жёсткое'
   if (k === 'window') return 'окно'
   return 'связное'
+}
+
+function slotRu(slot: string | null): string {
+  if (slot === 'morning') return 'утро'
+  if (slot === 'day') return 'день'
+  if (slot === 'evening') return 'вечер'
+  return ''
+}
+
+function animalNamesLine(
+  animalIds: number[],
+  animals: AnimalView[],
+): string {
+  return animalIds
+    .map((id) => animals.find((a) => a.id === id)?.name ?? `#${id}`)
+    .join(', ')
+}
+
+/** Подпись якоря: название · участники · время/слот */
+function anchorOptionLabel(
+  a: AppointmentView,
+  animals: AnimalView[],
+  all: AppointmentView[],
+): string {
+  const who = animalNamesLine(a.animal_ids, animals)
+  let when = ''
+  if (a.kind === 'fixed') {
+    when = a.local_time ?? ''
+  } else if (a.kind === 'window') {
+    const slot = slotRu(a.slot)
+    const ref = a.reference_local_time ? `~${a.reference_local_time}` : ''
+    when = [slot, ref].filter(Boolean).join(' ')
+  } else {
+    const parent = all.find((x) => x.id === a.anchor_appointment_id)
+    const dir = a.direction === 'before' ? 'до' : 'после'
+    when = `${dir} «${parent?.title ?? '?'}»`
+  }
+  return [a.title, who, when].filter(Boolean).join(' · ')
 }
