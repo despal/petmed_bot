@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import type { AnimalView, StepView } from '../types'
 import { colorForAppointment } from '../utils/colors'
 import {
@@ -122,6 +122,8 @@ export function DayGrid({
   displayTz,
   onOpenStep,
   scrollRef,
+  /** Моки: фиксированное «сейчас» дома. Без пропа — живые часы по houseTz. */
+  nowHouseLocal,
 }: {
   steps: StepView[]
   animals: AnimalView[]
@@ -129,12 +131,27 @@ export function DayGrid({
   displayTz: string
   onOpenStep: (stepId: number) => void
   scrollRef?: RefObject<HTMLDivElement | null>
+  nowHouseLocal?: string
 }) {
   const bands = buildBands(steps)
   const gridStartCm = bands[0]?.startCm ?? 4 * 60
   const gridEndCm = bands.at(-1)?.endCm ?? 19 * 60
   const laid = layoutCards(steps, gridStartCm)
   const totalHeight = ((gridEndCm - gridStartCm) / 60) * HOUR_HEIGHT
+
+  const [liveHm, setLiveHm] = useState(() => houseNowHm(houseTz))
+  useEffect(() => {
+    if (nowHouseLocal != null) return
+    const tick = () => setLiveHm(houseNowHm(houseTz))
+    tick()
+    const id = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(id)
+  }, [houseTz, nowHouseLocal])
+
+  const nowHm = nowHouseLocal ?? liveHm
+  const nowCm = careMinutes(nowHm)
+  const nowVisible = nowCm >= gridStartCm && nowCm <= gridEndCm
+  const nowTop = ((nowCm - gridStartCm) / 60) * HOUR_HEIGHT
 
   return (
     <div className="day-grid" ref={scrollRef} style={{ height: totalHeight }}>
@@ -183,6 +200,13 @@ export function DayGrid({
         )
       })}
 
+      {nowVisible && (
+        <div className="now-line" style={{ top: nowTop }} aria-hidden="true">
+          <span className="now-line-dot" />
+          <span className="now-line-rule" />
+        </div>
+      )}
+
       <div className="cards-layer" style={{ height: totalHeight }}>
         {laid.map(({ step, top, height, col, cols }) => {
           const widthPct = 100 / cols
@@ -228,7 +252,10 @@ export function DayGrid({
                 </span>
               )}
               {step.status === 'overdue' && (
-                <span className="step-card-mark mark-overdue" aria-label="просрочено">
+                <span
+                  className="step-card-mark mark-overdue"
+                  aria-label="просрочено"
+                >
                   <IconOverdue />
                 </span>
               )}
@@ -241,6 +268,15 @@ export function DayGrid({
       </div>
     </div>
   )
+}
+
+function houseNowHm(houseTz: string): string {
+  return new Date().toLocaleTimeString('en-GB', {
+    timeZone: houseTz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
 }
 
 function IconCheck() {

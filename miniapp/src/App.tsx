@@ -231,6 +231,7 @@ export default function App() {
               animals={animals}
               houseTz={houseTz}
               displayTz={displayTz}
+              nowHouseLocal={data.nowHouseLocal}
               onOpenStep={(stepId) => setOverlay({ type: 'step', stepId })}
             />
           </>
