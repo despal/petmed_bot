@@ -1315,6 +1315,13 @@ class Core:
     def _step_view(self, step: DayStep, house: House) -> StepView:
         planned = _aware(step.planned_at)
         day = self.s.get(CareDay, step.care_day_id)
+        fact_at = None
+        fact_local = None
+        if step.status == "done":
+            mark = self.s.scalars(select(Mark).where(Mark.step_id == step.id)).first()
+            if mark is not None and mark.fact_at is not None:
+                fact_at = _aware(mark.fact_at)
+                fact_local = house_local_clock(fact_at, house.schedule_timezone)
         return StepView(
             id=step.id,
             appointment_id=step.appointment_id,
@@ -1328,6 +1335,8 @@ class Core:
             slot=step.slot,
             animal_ids=list(step.animal_ids_snapshot),
             silent=step.appointment.silent,
+            fact_at=fact_at,
+            fact_local=fact_local,
         )
 
     def _notification_view(self, note: NotificationDecision) -> NotificationView:

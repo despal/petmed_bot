@@ -103,6 +103,8 @@ def step_json(s: StepView, *, course: str | None = None) -> dict:
         "title": s.title,
         "planned_at": _iso(s.planned_at),
         "planned_local": _hm(s.planned_local),
+        "fact_at": _iso(s.fact_at),
+        "fact_local": _hm(s.fact_local),
         "time_accuracy": s.time_accuracy,
         "status": s.status,
         "slot": s.slot,

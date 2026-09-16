@@ -106,8 +106,16 @@ const appointmentsFull: AppointmentView[] = [
 ]
 
 function step(
-  partial: Omit<StepView, 'house_id' | 'plan_date' | 'silent' | 'course_label'> &
-    Partial<Pick<StepView, 'house_id' | 'plan_date' | 'silent' | 'course_label'>>,
+  partial: Omit<
+    StepView,
+    'house_id' | 'plan_date' | 'silent' | 'course_label' | 'fact_at' | 'fact_local'
+  > &
+    Partial<
+      Pick<
+        StepView,
+        'house_id' | 'plan_date' | 'silent' | 'course_label' | 'fact_at' | 'fact_local'
+      >
+    >,
 ): StepView {
   return {
     ...partial,
@@ -115,6 +123,8 @@ function step(
     plan_date: partial.plan_date ?? PLAN_DATE,
     silent: partial.silent ?? false,
     course_label: partial.course_label ?? null,
+    fact_at: partial.fact_at ?? null,
+    fact_local: partial.fact_local ?? null,
   }
 }
 
@@ -125,6 +135,8 @@ const stepsFull: StepView[] = [
     title: 'Антепсин',
     planned_at: '2026-09-15T01:30:00Z',
     planned_local: '08:30',
+    fact_at: '2026-09-15T01:45:00Z',
+    fact_local: '08:45',
     time_accuracy: 'inexact',
     status: 'done',
     slot: 'morning',

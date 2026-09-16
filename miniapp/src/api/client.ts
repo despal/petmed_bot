@@ -132,6 +132,8 @@ export interface StepDto {
   title: string
   planned_at: string
   planned_local: string
+  fact_at: string | null
+  fact_local: string | null
   time_accuracy: 'exact' | 'inexact'
   status: 'pending' | 'done' | 'skipped' | 'overdue'
   slot: 'morning' | 'day' | 'evening' | null

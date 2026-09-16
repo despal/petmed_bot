@@ -59,6 +59,8 @@ class StepView:
     slot: str | None
     animal_ids: list[int]
     silent: bool
+    fact_at: datetime | None = None
+    fact_local: time | None = None
 
 
 @dataclass(frozen=True)

@@ -68,6 +68,33 @@ export function formatStepTime(
   return accuracy === 'inexact' ? `~ ${shown}` : shown
 }
 
+/** HH:MM on the schedule grid: fact for done, planned otherwise. */
+export function gridLocalHm(step: {
+  status: string
+  planned_local: string
+  fact_local: string | null
+}): string {
+  if (step.status === 'done' && step.fact_local) return step.fact_local
+  return step.planned_local
+}
+
+/** Card/modal label: fact time (exact) for done, planned slot otherwise. */
+export function formatStepDisplayTime(
+  step: {
+    status: string
+    planned_local: string
+    fact_local: string | null
+    time_accuracy: 'exact' | 'inexact'
+  },
+  houseTz: string,
+  displayTz: string,
+): string {
+  if (step.status === 'done' && step.fact_local) {
+    return houseLocalToDisplay(step.fact_local, houseTz, displayTz)
+  }
+  return formatStepTime(step.planned_local, step.time_accuracy, houseTz, displayTz)
+}
+
 export function animalNamesLine(
   animalIds: number[],
   animals: { id: number; name: string }[],

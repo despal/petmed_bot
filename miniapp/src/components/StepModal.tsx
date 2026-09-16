@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { AnimalView, StepView } from '../types'
 import {
   animalNamesLine,
+  formatStepDisplayTime,
   formatStepTime,
 } from '../utils/time'
 
@@ -30,12 +31,13 @@ export function StepModal({
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const closed = step.status === 'done' || step.status === 'skipped'
-  const time = formatStepTime(
-    step.planned_local,
-    step.time_accuracy,
-    houseTz,
-    displayTz,
-  )
+  const time = formatStepDisplayTime(step, houseTz, displayTz)
+  const plannedHint =
+    step.status === 'done' &&
+    step.fact_local &&
+    step.fact_local !== step.planned_local
+      ? `план ${formatStepTime(step.planned_local, step.time_accuracy, houseTz, displayTz)}`
+      : null
   const names = step.animal_ids
     .map((id) => animals.find((a) => a.id === id)?.name)
     .filter(Boolean)
@@ -48,6 +50,7 @@ export function StepModal({
           <div>
             <h2>{step.title}</h2>
             <div className="muted">{time}</div>
+            {plannedHint && <div className="muted">{plannedHint}</div>}
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
             <div className="menu">

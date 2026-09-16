@@ -58,6 +58,8 @@ export interface StepView {
   title: string
   planned_at: string // ISO UTC
   planned_local: string // HH:MM in house TZ
+  fact_at: string | null
+  fact_local: string | null // HH:MM in house TZ when done
   time_accuracy: TimeAccuracy
   status: StepStatus
   slot: 'morning' | 'day' | 'evening' | null

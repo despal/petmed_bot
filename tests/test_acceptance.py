@@ -104,6 +104,23 @@ def test_2_mark_antepsin_shifts_chain(core):
     assert exact[0].status == "scheduled"
 
 
+def test_2b_done_step_has_fact_local(core):
+    owner, house, sever, jackie, rex, now = setup_house(core)
+    morning_chain(core, owner, house, sever, jackie, rex, now)
+    core.tick(now)
+    care = core.get_care_day(owner.id, house.id, now)
+    antepsin = step_named(care, "Антепсин")
+
+    core.mark_step(owner.id, antepsin.id, "done", bkk(SAT, 8, 55))
+    care = core.get_care_day(owner.id, house.id, bkk(SAT, 8, 55))
+    antepsin = step_named(care, "Антепсин")
+
+    assert antepsin.status == "done"
+    assert antepsin.planned_local == time(8, 30)
+    assert antepsin.fact_local == time(8, 55)
+    assert antepsin.fact_at == bkk(SAT, 8, 55)
+
+
 def test_3_almagel_done_at_shifts_food(core):
     owner, house, sever, jackie, rex, now = setup_house(core)
     morning_chain(core, owner, house, sever, jackie, rex, now)

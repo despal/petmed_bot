@@ -3,7 +3,8 @@ import type { AnimalView, StepView } from '../types'
 import { colorForAppointment } from '../utils/colors'
 import {
   animalNamesLine,
-  formatStepTime,
+  formatStepDisplayTime,
+  gridLocalHm,
   hmToMinutes,
   houseLocalToDisplay,
 } from '../utils/time'
@@ -33,8 +34,8 @@ type Band = {
 }
 
 function buildBands(steps: StepView[]): Band[] {
-  const hasEarly = steps.some((s) => careMinutes(s.planned_local) < 4 * 60)
-  const hasLate = steps.some((s) => careMinutes(s.planned_local) >= 19 * 60)
+  const hasEarly = steps.some((s) => careMinutes(gridLocalHm(s)) < 4 * 60)
+  const hasLate = steps.some((s) => careMinutes(gridLocalHm(s)) >= 19 * 60)
 
   const bands: Band[] = []
   if (hasEarly) {
@@ -92,7 +93,7 @@ type LaidOut = {
 function layoutCards(steps: StepView[], gridStartCm: number): LaidOut[] {
   const items: LaidOut[] = steps
     .map((step) => {
-      const cm = careMinutes(step.planned_local)
+      const cm = careMinutes(gridLocalHm(step))
       const top = ((cm - gridStartCm) / 60) * HOUR_HEIGHT
       return { step, top, height: CARD_H, col: 0, cols: 1 }
     })
@@ -219,12 +220,7 @@ export function DayGrid({
                 : step.status === 'overdue'
                   ? ' status-overdue'
                   : ''
-          const time = formatStepTime(
-            step.planned_local,
-            step.time_accuracy,
-            houseTz,
-            displayTz,
-          )
+          const time = formatStepDisplayTime(step, houseTz, displayTz)
           const names = animalNamesLine(step.animal_ids, animals)
           const narrow = cols >= 3
           return (
