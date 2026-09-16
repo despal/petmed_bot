@@ -190,3 +190,74 @@ def test_health_no_auth(api_env, monkeypatch):
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json() == {"ok": True}
+
+
+def test_doubler_assign_remove_and_errors(api_env, monkeypatch):
+    from petmed_api import telegram_resolve as tr
+    import petmed_api.routes as routes
+
+    client, core, _ = api_env
+    owner = core.create_user("Asia/Bangkok", telegram_id="1001")
+    house = core.create_house(owner.id, "Asia/Bangkok")
+
+    def fake_resolve(_token: str, username_or_id: str):
+        raw = username_or_id.strip().lstrip("@")
+        if raw in {"missing", "999"}:
+            raise tr.TelegramResolveError("пользователь не найден")
+        tid = "5555" if raw in {"friend", "5555"} else raw
+        return tr.TelegramChatInfo(telegram_id=str(tid), display_name="Друг")
+
+    monkeypatch.setattr(routes, "resolve_chat", fake_resolve)
+    monkeypatch.setattr(
+        routes,
+        "display_name_for_telegram_id",
+        lambda _t, tid: "Друг" if tid == "5555" else tid,
+    )
+
+    r = client.get("/api/house/doubler")
+    assert r.status_code == 200
+    assert r.json() == {"doubler": None}
+
+    r = client.put("/api/house/doubler", json={"username_or_id": "@friend"})
+    assert r.status_code == 200
+    body = r.json()["doubler"]
+    assert body["telegram_id"] == "5555"
+    assert body["display_name"] == "Друг"
+    assert core.get_house_for_user(core.get_user_by_telegram_id("5555").id).id == house.id
+
+    r = client.put("/api/house/doubler", json={"username_or_id": "@missing"})
+    assert r.status_code == 400
+    assert "не найден" in r.json()["detail"]
+
+    other = core.create_user("UTC", telegram_id="7777")
+    core.create_house(other.id, "UTC")
+
+    def resolve_other(_token: str, username_or_id: str):
+        return tr.TelegramChatInfo(telegram_id="7777", display_name="Other")
+
+    monkeypatch.setattr(routes, "resolve_chat", resolve_other)
+    r = client.put("/api/house/doubler", json={"username_or_id": "7777"})
+    assert r.status_code == 400
+    assert "уже есть дом" in r.json()["detail"]
+
+    r = client.delete("/api/house/doubler")
+    assert r.status_code == 200
+    assert r.json() == {"doubler": None}
+
+
+def test_doubler_forbidden_for_doubler_role(api_env, monkeypatch):
+    client, core, _ = api_env
+    owner = core.create_user("Asia/Bangkok", telegram_id="1001")
+    house = core.create_house(owner.id, "Asia/Bangkok")
+    doubler = core.create_user("UTC", telegram_id="2002")
+    core.set_doubler(owner.id, house.id, doubler.id)
+
+    monkeypatch.setenv("DEV_TELEGRAM_ID", "2002")
+    r = client.get("/api/house/doubler")
+    assert r.status_code == 403
+    r = client.put("/api/house/doubler", json={"username_or_id": "1"})
+    assert r.status_code == 403
+    r = client.delete("/api/house/doubler")
+    assert r.status_code == 403
+    r = client.patch("/api/house/timezone", json={"schedule_timezone": "UTC"})
+    assert r.status_code == 403

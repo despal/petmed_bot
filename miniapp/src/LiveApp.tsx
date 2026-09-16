@@ -3,7 +3,7 @@
  * Auth: Telegram initData (Authorization: tma …) или DEV_TELEGRAM_ID на сервере.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api, ApiError, type AppointmentDto, type CareDayDto, type HouseDto, type UserDto } from './api/client'
+import { api, ApiError, type AppointmentDto, type CareDayDto, type DoublerInfo, type HouseDto, type UserDto } from './api/client'
 import { BottomTabs } from './components/BottomTabs'
 import { DayGrid, scrollTopForEight } from './components/DayGrid'
 import { StepModal } from './components/StepModal'
@@ -44,6 +44,9 @@ export default function LiveApp() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(
     () => (localStorage.getItem('petmed-theme') as ThemeMode) || 'system',
   )
+  const [doubler, setDoubler] = useState<DoublerInfo | null>(null)
+  const [doublerBusy, setDoublerBusy] = useState(false)
+  const [doublerError, setDoublerError] = useState<string | null>(null)
   const resolvedTheme = useResolvedTheme(themeMode)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -62,6 +65,20 @@ export default function LiveApp() {
     setAppointments(rows)
   }, [])
 
+  const refreshDoubler = useCallback(async () => {
+    if (!user || !house || user.id !== house.creator_user_id) {
+      setDoubler(null)
+      return
+    }
+    try {
+      const res = await api.getDoubler()
+      setDoubler(res.doubler)
+      setDoublerError(null)
+    } catch (e) {
+      setDoublerError(e instanceof ApiError ? e.detail : 'Ошибка')
+    }
+  }, [user, house])
+
   const refreshAfterWrite = useCallback(async () => {
     await refreshDay()
     if (tab === 'settings') await refreshAppointments()
@@ -74,6 +91,10 @@ export default function LiveApp() {
   useEffect(() => {
     localStorage.setItem('petmed-theme', themeMode)
   }, [themeMode])
+
+  useEffect(() => {
+    if (tab === 'settings') void refreshDoubler()
+  }, [tab, refreshDoubler])
 
   useEffect(() => {
     let cancelled = false
@@ -196,6 +217,7 @@ export default function LiveApp() {
   }
 
   const emptyHouse = liveAnimals.length === 0
+  const isCreator = !!(user && house && user.id === house.creator_user_id)
   const nowHouseLocal = new Date().toLocaleTimeString('en-GB', {
     timeZone: houseTz,
     hour: '2-digit',
@@ -237,6 +259,10 @@ export default function LiveApp() {
               appointments={appointments}
               theme={themeMode}
               onThemeChange={setThemeMode}
+              isCreator={isCreator}
+              doubler={doubler}
+              doublerBusy={doublerBusy}
+              doublerError={doublerError}
               onEditAnimal={(id) => setOverlay({ type: 'animal_form', animalId: id })}
               onAddAnimal={() => setOverlay({ type: 'animal_form' })}
               onEditAppointment={(id) =>
@@ -257,6 +283,36 @@ export default function LiveApp() {
                   setUser(u)
                 } catch (e) {
                   showToast(e instanceof ApiError ? e.detail : 'Ошибка')
+                }
+              }}
+              onAssignDoubler={async (usernameOrId) => {
+                setDoublerBusy(true)
+                setDoublerError(null)
+                try {
+                  const res = await api.setDoubler(usernameOrId)
+                  setDoubler(res.doubler)
+                  if (house) {
+                    setHouse({ ...house, doubler_user_id: res.doubler?.user_id ?? null })
+                  }
+                  showToast('Доступ выдан')
+                } catch (e) {
+                  setDoublerError(e instanceof ApiError ? e.detail : 'Ошибка')
+                } finally {
+                  setDoublerBusy(false)
+                }
+              }}
+              onRemoveDoubler={async () => {
+                setDoublerBusy(true)
+                setDoublerError(null)
+                try {
+                  const res = await api.removeDoubler()
+                  setDoubler(res.doubler)
+                  if (house) setHouse({ ...house, doubler_user_id: null })
+                  showToast('Доступ убран')
+                } catch (e) {
+                  setDoublerError(e instanceof ApiError ? e.detail : 'Ошибка')
+                } finally {
+                  setDoublerBusy(false)
                 }
               }}
             />

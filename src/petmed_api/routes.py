@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Annotated
 
@@ -11,6 +12,7 @@ from petmed_api.schemas import (
     AnimalPatchBody,
     AppointmentCreateBody,
     AppointmentPatchBody,
+    DoublerAssignBody,
     HouseCreateBody,
     HouseTimezoneBody,
     MarkBody,
@@ -25,10 +27,41 @@ from petmed_api.serialize import (
     parse_hm,
     user_json,
 )
+from petmed_api.telegram_resolve import (
+    TelegramResolveError,
+    display_name_for_telegram_id,
+    resolve_chat,
+)
 from petmed_core import Core, CoreError
 from petmed_core.views import AppointmentView
 
 router = APIRouter(prefix="/api")
+
+
+def _bot_token() -> str:
+    return os.environ.get("BOT_TOKEN", "").strip()
+
+
+def _require_creator(actor: Actor) -> None:
+    assert actor.house is not None
+    if actor.user.id != actor.house.creator_user_id:
+        raise HTTPException(status_code=403, detail="только создатель дома")
+
+
+def _doubler_payload(core: Core, house_id: int, doubler_user_id: int | None) -> dict:
+    if doubler_user_id is None:
+        return {"doubler": None}
+    user = core.get_user(doubler_user_id)
+    display_name = None
+    if user.telegram_id:
+        display_name = display_name_for_telegram_id(_bot_token(), user.telegram_id)
+    return {
+        "doubler": {
+            "user_id": user.id,
+            "telegram_id": user.telegram_id,
+            "display_name": display_name or user.telegram_id,
+        }
+    }
 
 
 def _appointments_map(core: Core, actor: Actor) -> dict[int, AppointmentView]:
@@ -324,3 +357,53 @@ def mark_step(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         raise map_core_error(exc) from exc
     return mark_json(mark)
+
+
+@router.get("/house/doubler")
+def get_doubler(
+    actor: Annotated[Actor, Depends(require_house)],
+    core: Annotated[Core, Depends(get_core)],
+) -> dict:
+    _require_creator(actor)
+    assert actor.house is not None
+    return _doubler_payload(core, actor.house.id, actor.house.doubler_user_id)
+
+
+@router.put("/house/doubler")
+def put_doubler(
+    body: DoublerAssignBody,
+    actor: Annotated[Actor, Depends(require_house)],
+    core: Annotated[Core, Depends(get_core)],
+) -> dict:
+    _require_creator(actor)
+    assert actor.house is not None
+    try:
+        chat = resolve_chat(_bot_token(), body.username_or_id)
+    except TelegramResolveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    target = core.get_user_by_telegram_id(chat.telegram_id)
+    if target is None:
+        try:
+            target = core.create_user("UTC", telegram_id=chat.telegram_id)
+        except CoreError as exc:
+            raise map_core_error(exc) from exc
+    try:
+        house = core.set_doubler(actor.user.id, actor.house.id, target.id)
+    except CoreError as exc:
+        raise map_core_error(exc) from exc
+    return _doubler_payload(core, house.id, house.doubler_user_id)
+
+
+@router.delete("/house/doubler")
+def delete_doubler(
+    actor: Annotated[Actor, Depends(require_house)],
+    core: Annotated[Core, Depends(get_core)],
+) -> dict:
+    _require_creator(actor)
+    assert actor.house is not None
+    try:
+        house = core.set_doubler(actor.user.id, actor.house.id, None)
+    except CoreError as exc:
+        raise map_core_error(exc) from exc
+    return _doubler_payload(core, house.id, house.doubler_user_id)

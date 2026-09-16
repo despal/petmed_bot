@@ -63,3 +63,7 @@ class AppointmentPatchBody(BaseModel):
 class MarkBody(BaseModel):
     kind: Literal["done", "done_at", "skipped"]
     local_time: str | None = None
+
+
+class DoublerAssignBody(BaseModel):
+    username_or_id: str

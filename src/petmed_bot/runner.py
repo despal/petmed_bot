@@ -17,7 +17,7 @@ from aiogram.types import (
 )
 
 from petmed_bot.delivery import DeliveryLoop, TelegramSendError
-from petmed_bot.texts import BTN_APP, BTN_DONE, reminder_text
+from petmed_bot.texts import BTN_APP, BTN_DONE, format_telegram_label, reminder_text
 from petmed_core import Core, create_session
 from petmed_core.timeutil import TICK_INTERVAL
 
@@ -78,8 +78,24 @@ class AiogramTelegram:
             raise TelegramSendError(str(exc)) from exc
 
 
-def build_dispatcher(handlers: DeliveryLoop, webapp_url: str | None) -> Dispatcher:
+def build_dispatcher(handlers: DeliveryLoop, webapp_url: str | None, bot: Bot | None = None) -> Dispatcher:
     dp = Dispatcher()
+
+    async def _creator_label(creator_telegram_id: str | None) -> str | None:
+        if not creator_telegram_id:
+            return None
+        if bot is None:
+            return creator_telegram_id
+        try:
+            chat = await bot.get_chat(int(creator_telegram_id))
+            return format_telegram_label(
+                first_name=getattr(chat, "first_name", None),
+                last_name=getattr(chat, "last_name", None),
+                username=getattr(chat, "username", None),
+                fallback_id=creator_telegram_id,
+            )
+        except Exception:
+            return creator_telegram_id
 
     @dp.message(CommandStart())
     async def on_start(message: Message, command: CommandObject) -> None:
@@ -93,7 +109,15 @@ def build_dispatcher(handlers: DeliveryLoop, webapp_url: str | None) -> Dispatch
             text = handlers.handle_start_token(command.args, str(message.from_user.id))
             await message.answer(text, reply_markup=keyboard)
             return
-        await message.answer(handlers.handle_start(), reply_markup=keyboard)
+        tid = str(message.from_user.id) if message.from_user else None
+        label = None
+        if tid:
+            pending = handlers.core.doubler_welcome_pending(tid)
+            if pending is not None:
+                _actor_id, creator_tid = pending
+                label = await _creator_label(creator_tid)
+        text = handlers.handle_start(tid, creator_label=label)
+        await message.answer(text, reply_markup=keyboard)
 
     @dp.callback_query(F.data == "app")
     async def on_app(callback: CallbackQuery) -> None:
@@ -160,7 +184,7 @@ async def amain() -> None:
     bot = Bot(token)
     gateway = AiogramTelegram(bot, webapp_url)
     handlers = DeliveryLoop(core, _UnusedPort())
-    dp = build_dispatcher(handlers, webapp_url)
+    dp = build_dispatcher(handlers, webapp_url, bot=bot)
     ticker = asyncio.create_task(_tick_forever(core, gateway))
     try:
         await dp.start_polling(bot)

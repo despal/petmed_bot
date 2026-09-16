@@ -191,6 +191,21 @@ def test_10_start_does_not_create_user():
     assert core.get_user_by_telegram_id("7777") is None
 
 
+def test_doubler_first_start_welcome_then_normal():
+    core, owner, house, sever, jackie = seeded()
+    doubler = core.create_user("Europe/Moscow", telegram_id="3001")
+    core.set_doubler(owner.id, house.id, doubler.id)
+    bot = DeliveryLoop(core, MemoryTelegram())
+    first = bot.handle_start("3001", creator_label="Анна")
+    assert first == "Вы добавлены в дом Анна"
+    second = bot.handle_start("3001", creator_label="Анна")
+    assert "придут сами" in second
+    core.set_doubler(owner.id, house.id, None)
+    core.set_doubler(owner.id, house.id, doubler.id)
+    again = bot.handle_start("3001", creator_label="1001")
+    assert again == "Вы добавлены в дом 1001"
+
+
 def test_open_app_stub():
     bot = DeliveryLoop(Core(create_session()), MemoryTelegram())
     assert bot.handle_open_app() == APP_STUB

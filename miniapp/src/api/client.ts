@@ -83,6 +83,14 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ display_timezone }),
     }),
+  getDoubler: () => request<DoublerResponse>('/api/house/doubler'),
+  setDoubler: (username_or_id: string) =>
+    request<DoublerResponse>('/api/house/doubler', {
+      method: 'PUT',
+      body: JSON.stringify({ username_or_id }),
+    }),
+  removeDoubler: () =>
+    request<DoublerResponse>('/api/house/doubler', { method: 'DELETE' }),
 }
 
 export interface UserDto {
@@ -96,6 +104,16 @@ export interface HouseDto {
   creator_user_id: number
   schedule_timezone: string
   doubler_user_id: number | null
+}
+
+export interface DoublerInfo {
+  user_id: number
+  telegram_id: string | null
+  display_name: string | null
+}
+
+export interface DoublerResponse {
+  doubler: DoublerInfo | null
 }
 
 export interface AnimalDto {

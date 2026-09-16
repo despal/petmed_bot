@@ -32,10 +32,19 @@ def test_a1_house_for_user_ambiguous(core):
     b = core.create_user("Europe/Moscow")
     ha = core.create_house(a.id, "Asia/Bangkok")
     hb = core.create_house(b.id, "Europe/Moscow")
-    core.set_doubler(b.id, hb.id, a.id)
+    # назначение создателя чужим дублёром запрещено; проверяем страховку чтения
+    from petmed_core.models import House
+
+    row = core.s.get(House, hb.id)
+    assert row is not None
+    row.doubler_user_id = a.id
+    core.s.commit()
     with pytest.raises(ValidationError, match="больше одного дома"):
         core.get_house_for_user(a.id)
-    core.set_doubler(b.id, hb.id, None)
+    row = core.s.get(House, hb.id)
+    assert row is not None
+    row.doubler_user_id = None
+    core.s.commit()
     assert core.get_house_for_user(a.id).id == ha.id
 
 

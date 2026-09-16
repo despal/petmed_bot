@@ -34,6 +34,7 @@ class House(Base):
     creator_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True)
     schedule_timezone: Mapped[str] = mapped_column(String(64), nullable=False)
     doubler_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    doubler_start_seen: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     animals: Mapped[list["Animal"]] = relationship(back_populates="house")
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="house")

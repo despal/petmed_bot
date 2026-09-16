@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from petmed_api.routes import router
-from petmed_core.models import Base
+from petmed_core.db import ensure_schema
 
 
 def create_app() -> FastAPI:
@@ -16,7 +16,7 @@ def create_app() -> FastAPI:
     db_url = os.environ.get("DATABASE_URL", "sqlite:///petmed.db")
     connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
     engine = create_engine(db_url, connect_args=connect_args)
-    Base.metadata.create_all(engine)
+    ensure_schema(engine)
     app.state.session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     if os.environ.get("DEV_TELEGRAM_ID"):

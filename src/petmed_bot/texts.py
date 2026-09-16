@@ -17,6 +17,31 @@ INVITE_BAD = "Ссылка недействительна"
 INVITE_OK = "Добро пожаловать. Открой приложение, чтобы настроить дом."
 
 
+def doubler_welcome_text(creator_label: str) -> str:
+    label = (creator_label or "").strip()
+    if label:
+        return f"Вы добавлены в дом {label}"
+    return "Вы добавлены в дом"
+
+
+def format_telegram_label(
+    *,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    username: str | None = None,
+    fallback_id: str | int | None = None,
+) -> str:
+    """Имя → @ник → id."""
+    parts = [p for p in (first_name, last_name) if p]
+    name = " ".join(parts).strip()
+    if name:
+        return name
+    if username:
+        nick = username.lstrip("@")
+        return f"@{nick}" if nick else str(fallback_id or "")
+    return str(fallback_id) if fallback_id is not None else ""
+
+
 def format_clock(local: datetime) -> str:
     return local.strftime("%H:%M")
 

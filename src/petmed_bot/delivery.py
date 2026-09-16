@@ -15,6 +15,7 @@ from petmed_bot.texts import (
     INVITE_OK,
     MARKED,
     NO_ACCESS,
+    doubler_welcome_text,
     reminder_text,
     start_text,
 )
@@ -91,7 +92,16 @@ class DeliveryLoop:
         for note in self.core.get_due_notifications():
             deliver_note(self.core, note, self.telegram.send_reminder)
 
-    def handle_start(self) -> str:
+    def handle_start(self, telegram_id: str | None = None, creator_label: str | None = None) -> str:
+        if telegram_id:
+            pending = self.core.doubler_welcome_pending(str(telegram_id))
+            if pending is not None:
+                actor_id, creator_tid = pending
+                label = creator_label
+                if not label:
+                    label = creator_tid or ""
+                self.core.mark_doubler_welcomed(actor_id)
+                return doubler_welcome_text(label)
         return start_text()
 
     def handle_start_token(self, token: str, telegram_id: str) -> str:

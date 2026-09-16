@@ -1,6 +1,13 @@
+import { useState } from 'react'
 import { placeCaption, TZ_PLACES } from '../data/timezones'
 import { AvatarBadge } from './Avatar'
 import type { AnimalView, AppointmentView, HouseView, UserView } from '../types'
+
+export type DoublerInfoView = {
+  user_id: number
+  telegram_id: string | null
+  display_name: string | null
+}
 
 export function SettingsScreen({
   user,
@@ -14,6 +21,12 @@ export function SettingsScreen({
   onEditAppointment,
   onPickHouseTz,
   onPickMyTz,
+  isCreator = true,
+  doubler = null,
+  doublerBusy = false,
+  doublerError = null,
+  onAssignDoubler,
+  onRemoveDoubler,
 }: {
   user: UserView
   house: HouseView
@@ -26,11 +39,22 @@ export function SettingsScreen({
   onEditAppointment: (id: number) => void
   onPickHouseTz: (iana: string) => void
   onPickMyTz: (iana: string) => void
+  isCreator?: boolean
+  doubler?: DoublerInfoView | null
+  doublerBusy?: boolean
+  doublerError?: string | null
+  onAssignDoubler?: (usernameOrId: string) => void | Promise<void>
+  onRemoveDoubler?: () => void | Promise<void>
 }) {
   const liveAnimals = animals.filter((a) => !a.archived)
   const archivedAnimals = animals.filter((a) => a.archived)
   const liveAppts = appointments.filter((a) => !a.archived)
   const archivedAppts = appointments.filter((a) => a.archived)
+  const [accessOpen, setAccessOpen] = useState(false)
+  const [input, setInput] = useState('')
+
+  const doublerLabel =
+    doubler?.display_name || doubler?.telegram_id || (doubler ? `#${doubler.user_id}` : '')
 
   return (
     <div className="panel">
@@ -111,25 +135,27 @@ export function SettingsScreen({
         )}
       </section>
 
-      <section className="settings-section">
-        <h3>Время дома</h3>
-        <p className="muted">
-          Смена не пересобирает уже собранный сегодня день.
-        </p>
-        <div className="field">
-          <label>{placeCaption(house.schedule_timezone)}</label>
-          <select
-            value={house.schedule_timezone}
-            onChange={(e) => onPickHouseTz(e.target.value)}
-          >
-            {TZ_PLACES.map((p) => (
-              <option key={p.iana} value={p.iana}>
-                {placeCaption(p.iana)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
+      {isCreator && (
+        <section className="settings-section">
+          <h3>Время дома</h3>
+          <p className="muted">
+            Смена не пересобирает уже собранный сегодня день.
+          </p>
+          <div className="field">
+            <label>{placeCaption(house.schedule_timezone)}</label>
+            <select
+              value={house.schedule_timezone}
+              onChange={(e) => onPickHouseTz(e.target.value)}
+            >
+              {TZ_PLACES.map((p) => (
+                <option key={p.iana} value={p.iana}>
+                  {placeCaption(p.iana)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+      )}
 
       <section className="settings-section">
         <h3>Моё время</h3>
@@ -147,6 +173,75 @@ export function SettingsScreen({
           </select>
         </div>
       </section>
+
+      {isCreator && (
+        <section className="settings-section">
+          <h3>Доступ к дому</h3>
+          {!accessOpen ? (
+            <button type="button" className="btn" onClick={() => setAccessOpen(true)}>
+              Предоставить доступ к дому…
+            </button>
+          ) : doubler ? (
+            <>
+              <p>
+                Доступ выдан: <strong>{doublerLabel}</strong>
+              </p>
+              {doublerError && <p className="muted">{doublerError}</p>}
+              <button
+                type="button"
+                className="btn"
+                disabled={doublerBusy || !onRemoveDoubler}
+                onClick={() => void onRemoveDoubler?.()}
+              >
+                Убрать доступ
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ marginTop: 8 }}
+                onClick={() => setAccessOpen(false)}
+              >
+                Закрыть
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="muted">
+                Введите @username или числовой Telegram id.
+              </p>
+              <div className="field">
+                <label>Пользователь</label>
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="@username или id"
+                  disabled={doublerBusy}
+                />
+              </div>
+              {doublerError && <p className="muted">{doublerError}</p>}
+              <button
+                type="button"
+                className="btn primary"
+                disabled={doublerBusy || !input.trim() || !onAssignDoubler}
+                onClick={() => void onAssignDoubler?.(input.trim())}
+              >
+                Предоставить доступ
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  setAccessOpen(false)
+                  setInput('')
+                }}
+              >
+                Отмена
+              </button>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="settings-section">
         <h3>Тема</h3>

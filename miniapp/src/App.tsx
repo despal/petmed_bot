@@ -169,6 +169,7 @@ export default function App() {
             appointments={data.appointments}
             theme={themeMode}
             onThemeChange={setThemeMode}
+            isCreator={data.user.id === data.house.creator_user_id}
             onEditAnimal={(id) =>
               setOverlay({ type: 'animal_form', animalId: id })
             }

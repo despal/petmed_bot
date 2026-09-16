@@ -483,5 +483,5 @@ def test_to_user_local_helper():
 
 def test_creator_cannot_be_own_doubler(core):
     owner, house, *_ = setup_house(core)
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="уже есть дом"):
         core.set_doubler(owner.id, house.id, owner.id)

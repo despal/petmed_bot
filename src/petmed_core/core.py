@@ -108,6 +108,7 @@ class Core:
             creator_user_id=creator_user_id,
             schedule_timezone=schedule_timezone,
             doubler_user_id=None,
+            doubler_start_seen=False,
         )
         self.s.add(house)
         self.s.commit()
@@ -127,16 +128,38 @@ class Core:
         self._require_creator(actor_user_id, house)
         if user_id is None:
             house.doubler_user_id = None
+            house.doubler_start_seen = False
         else:
-            if user_id == house.creator_user_id:
-                raise ValidationError("создатель не может быть дублёром своего дома")
             self._user(user_id)
+            if self._user_already_has_house(user_id, except_house_id=house.id):
+                raise ValidationError("у пользователя уже есть дом")
             if house.doubler_user_id is not None and house.doubler_user_id != user_id:
                 raise ValidationError("дублёр уже назначен, сначала снимите текущего")
             house.doubler_user_id = user_id
+            house.doubler_start_seen = False
         self._refresh_notification_audience(house)
         self.s.commit()
         return self._house_view(house)
+
+    def doubler_welcome_pending(self, telegram_id: str) -> tuple[int, str | None] | None:
+        """Если user — дублёр и welcome ещё не показан: (actor_user_id, creator_telegram_id)."""
+        user = self.s.scalars(select(User).where(User.telegram_id == str(telegram_id))).first()
+        if user is None:
+            return None
+        house = self.s.scalars(select(House).where(House.doubler_user_id == user.id)).first()
+        if house is None or house.doubler_start_seen:
+            return None
+        creator = self._user(house.creator_user_id)
+        return user.id, creator.telegram_id
+
+    def mark_doubler_welcomed(self, actor_user_id: int) -> bool:
+        """Отметить welcome показанным. Идемпотентно. True — если только что отметили."""
+        house = self.s.scalars(select(House).where(House.doubler_user_id == actor_user_id)).first()
+        if house is None or house.doubler_start_seen:
+            return False
+        house.doubler_start_seen = True
+        self.s.commit()
+        return True
 
     def set_display_timezone(self, actor_user_id: int, display_timezone: str) -> UserView:
         user = self._user(actor_user_id)
@@ -1252,6 +1275,16 @@ class Core:
         if house.doubler_user_id:
             ids.append(house.doubler_user_id)
         return ids
+
+    def _user_already_has_house(self, user_id: int, *, except_house_id: int | None = None) -> bool:
+        """Создатель любого дома или дублёр другого дома (слот текущего дома не считается)."""
+        as_creator = self.s.scalars(select(House).where(House.creator_user_id == user_id)).first()
+        if as_creator is not None:
+            return True
+        q = select(House).where(House.doubler_user_id == user_id)
+        if except_house_id is not None:
+            q = q.where(House.id != except_house_id)
+        return self.s.scalars(q).first() is not None
 
     def _refresh_notification_audience(self, house: House) -> None:
         audience = self._audience(house)
