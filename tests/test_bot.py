@@ -41,12 +41,24 @@ def test_1_push_due_consumed():
     assert msg.chat_id == "1001"
     assert "Пора:" in msg.text
     assert "Ориентир" in msg.text
+    assert "Север" in msg.text
     assert BTN_DONE in msg.buttons
     assert BTN_APP in msg.buttons
     due = core.get_due_notifications()
     assert due == []
     notes = core.get_notifications(house_id=house.id)
     assert any(n.status == "consumed" and n.kind == "inexact_repeat" for n in notes)
+
+
+def test_1b_multi_animals_in_reminder():
+    core, owner, house, sever, jackie = seeded()
+    now = bkk(SAT, 7)
+    window_food(core, owner, house, [sever.id, jackie.id], now)
+    tg = MemoryTelegram()
+    bot = DeliveryLoop(core, tg)
+    bot.run_cycle(bkk(SAT, 10, 30))
+    assert "Север" in tg.sent[0].text
+    assert "Джеки" in tg.sent[0].text
 
 
 def test_2_done_button_marks_only_that_step():

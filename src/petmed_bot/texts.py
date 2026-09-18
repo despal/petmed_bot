@@ -68,7 +68,7 @@ def reminder_text(
         line = f"Сейчас: {step.title}. Время {clock}."
     else:
         line = f"Пора: {step.title}. Ориентир {clock}."
-    if len(step.animal_ids) > 1:
+    if step.animal_ids:
         names = [core.get_animal(aid).name for aid in step.animal_ids]
         line += " " + ", ".join(names) + "."
     progress = course_label(appt, step.plan_date)
