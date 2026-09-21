@@ -451,6 +451,9 @@ export function DayGrid({
   )
 }
 
+/** Pixel offset so «сейчас» не у самого края viewport. */
+const NOW_SCROLL_OFFSET = 96
+
 function houseNowHm(houseTz: string): string {
   return new Date().toLocaleTimeString('en-GB', {
     timeZone: houseTz,
@@ -499,7 +502,6 @@ function IconSkip() {
   )
 }
 
-/** Спокойная точка — просрочено, ещё не закрыто */
 function IconOverdue() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -508,7 +510,25 @@ function IconOverdue() {
   )
 }
 
-/** Pixel offset to scroll so 08:00 is near the top. */
+/** Scroll so линия текущего времени около верха (с отступом). Вне сетки — clamp. */
+export function scrollTopForNow(
+  steps: StepView[],
+  houseTz: string,
+  nowHouseLocal?: string,
+  offsetPx: number = NOW_SCROLL_OFFSET,
+): number {
+  const bands = buildBands(steps)
+  const gridStartCm = bands[0]?.startCm ?? 4 * 60
+  const gridEndCm = bands.at(-1)?.endCm ?? 19 * 60
+  const hm = nowHouseLocal ?? houseNowHm(houseTz)
+  let nowCm = careMinutes(hm)
+  if (nowCm < gridStartCm) nowCm = gridStartCm
+  if (nowCm > gridEndCm) nowCm = gridEndCm
+  const nowTop = ((nowCm - gridStartCm) / 60) * HOUR_HEIGHT
+  return Math.max(0, nowTop - offsetPx)
+}
+
+/** @deprecated предпочтительно scrollTopForNow */
 export function scrollTopForEight(steps: StepView[]): number {
   const bands = buildBands(steps)
   const gridStartCm = bands[0]?.startCm ?? 4 * 60

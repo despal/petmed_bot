@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, type AppointmentDto, type CareDayDto, type DoublerInfo, type HouseDto, type UserDto } from './api/client'
 import { BottomTabs } from './components/BottomTabs'
-import { DayGrid, scrollTopForEight } from './components/DayGrid'
+import { DayGrid, scrollTopForNow } from './components/DayGrid'
 import { StepModal } from './components/StepModal'
 import { DoneAtScreen } from './components/DoneAtScreen'
 import { AnimalForm } from './components/AnimalForm'
@@ -142,12 +142,39 @@ export default function LiveApp() {
     return steps
   }, [careDay, tab])
 
+  const scrollKey = tab === 'settings' || !careDay ? null : `${tab}:${careDay.plan_date}`
+  const lastScrollKey = useRef<string | null>(null)
+
   useLayoutEffect(() => {
-    if (tab === 'settings' || !careDay) return
+    if (tab === 'settings') {
+      lastScrollKey.current = null
+      return
+    }
+    if (!scrollKey) return
+    if (lastScrollKey.current === scrollKey) return
+    lastScrollKey.current = scrollKey
     const el = scrollRef.current
     if (!el) return
-    el.scrollTop = scrollTopForEight(visibleSteps)
-  }, [tab, careDay, visibleSteps])
+    el.scrollTop = scrollTopForNow(visibleSteps, houseTz)
+  }, [tab, scrollKey, visibleSteps, houseTz])
+
+  useEffect(() => {
+    if (!house || bootError) return
+    const POLL_MS = 3 * 60 * 1000
+    const tick = () => {
+      if (document.hidden) return
+      void (async () => {
+        try {
+          const day = await api.careDay()
+          setCareDay(day)
+        } catch {
+          /* тихий опрос — без тоста */
+        }
+      })()
+    }
+    const id = window.setInterval(tick, POLL_MS)
+    return () => window.clearInterval(id)
+  }, [house, bootError])
 
   if (bootError === 'loading') {
     return (

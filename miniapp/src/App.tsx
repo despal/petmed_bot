@@ -9,7 +9,7 @@ import { StandSwitcher } from './components/StandSwitcher'
 import { NoAccessScreen } from './components/NoAccessScreen'
 import { FirstTimezoneScreen } from './components/FirstTimezoneScreen'
 import { BottomTabs } from './components/BottomTabs'
-import { DayGrid, scrollTopForEight } from './components/DayGrid'
+import { DayGrid, scrollTopForNow } from './components/DayGrid'
 import { StepModal } from './components/StepModal'
 import { DoneAtScreen } from './components/DoneAtScreen'
 import { AnimalForm } from './components/AnimalForm'
@@ -90,8 +90,12 @@ export default function App() {
     if (tab === 'settings' || !data.careDay) return
     const el = scrollRef.current
     if (!el) return
-    el.scrollTop = scrollTopForEight(visibleSteps)
-  }, [standId, tab, data.careDay, visibleSteps])
+    el.scrollTop = scrollTopForNow(
+      visibleSteps,
+      data.house?.schedule_timezone ?? 'UTC',
+      data.nowHouseLocal,
+    )
+  }, [standId, tab, data.careDay, data.house?.schedule_timezone, data.nowHouseLocal, visibleSteps])
 
   const patchStepStatus = (
     stepId: number,
