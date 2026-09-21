@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useState, type RefObject } from 'react'
 import type { AnimalView, StepView } from '../types'
 import { colorForAppointment } from '../utils/colors'
 import {
@@ -10,7 +10,11 @@ import {
 } from '../utils/time'
 
 const HOUR_HEIGHT = 56
-const CARD_H = 52
+const CARD_H = 40
+const STACK_PEEK = 5
+const STACK_PEEK_MAX = 2
+/** Overlap slack: treat as same cluster if cards almost touch. */
+const OVERLAP_SLACK = 2
 
 /** Minutes from care-day start 04:00. */
 function careMinutes(hm: string): number {
@@ -82,38 +86,133 @@ function buildBands(steps: StepView[]): Band[] {
   return bands
 }
 
-type LaidOut = {
+type Placed = {
   step: StepView
   top: number
   height: number
-  col: number
-  cols: number
 }
 
-function layoutCards(steps: StepView[], gridStartCm: number): LaidOut[] {
-  const items: LaidOut[] = steps
+type Cluster = {
+  id: string
+  steps: StepView[]
+  top: number
+  height: number
+}
+
+function placeSteps(steps: StepView[], gridStartCm: number): Placed[] {
+  return steps
     .map((step) => {
       const cm = careMinutes(gridLocalHm(step))
       const top = ((cm - gridStartCm) / 60) * HOUR_HEIGHT
-      return { step, top, height: CARD_H, col: 0, cols: 1 }
+      return { step, top, height: CARD_H }
     })
     .sort((a, b) => a.top - b.top || a.step.id - b.step.id)
+}
 
-  const active: LaidOut[] = []
-  for (const item of items) {
-    for (let i = active.length - 1; i >= 0; i--) {
-      if (active[i].top + active[i].height <= item.top + 2) active.splice(i, 1)
-    }
-    const used = new Set(active.map((a) => a.col))
-    let col = 0
-    while (used.has(col) && col < 2) col++
-    item.col = col
-    active.push(item)
-    const groupCols = Math.min(3, Math.max(...active.map((a) => a.col)) + 1)
-    for (const a of active) a.cols = groupCols
-    item.cols = groupCols
+/** Connected components by vertical overlap → stacks. */
+function buildClusters(placed: Placed[]): Cluster[] {
+  if (placed.length === 0) return []
+
+  const parent = placed.map((_, i) => i)
+  const find = (i: number): number => {
+    if (parent[i] !== i) parent[i] = find(parent[i])
+    return parent[i]
   }
-  return items
+  const unite = (a: number, b: number) => {
+    const ra = find(a)
+    const rb = find(b)
+    if (ra !== rb) parent[rb] = ra
+  }
+
+  const active: number[] = []
+  for (let i = 0; i < placed.length; i++) {
+    const item = placed[i]
+    for (let j = active.length - 1; j >= 0; j--) {
+      const prev = placed[active[j]]
+      if (prev.top + prev.height <= item.top + OVERLAP_SLACK) {
+        active.splice(j, 1)
+      }
+    }
+    for (const j of active) unite(i, j)
+    active.push(i)
+  }
+
+  const groups = new Map<number, Placed[]>()
+  for (let i = 0; i < placed.length; i++) {
+    const root = find(i)
+    const list = groups.get(root) ?? []
+    list.push(placed[i])
+    groups.set(root, list)
+  }
+
+  return [...groups.values()].map((group) => {
+    const sorted = [...group].sort(
+      (a, b) => a.top - b.top || a.step.id - b.step.id,
+    )
+    const top = sorted[0].top
+    const bottom = Math.max(...sorted.map((g) => g.top + g.height))
+    return {
+      id: sorted.map((g) => g.step.id).join('-'),
+      steps: sorted.map((g) => g.step),
+      top,
+      height: bottom - top,
+    }
+  })
+}
+
+function cardMeta(
+  step: StepView,
+  animals: AnimalView[],
+  houseTz: string,
+  displayTz: string,
+): string {
+  const time = formatStepDisplayTime(step, houseTz, displayTz)
+  const names = animalNamesLine(step.animal_ids, animals)
+  return names ? `${time} · ${names}` : time
+}
+
+function statusClass(status: StepView['status']): string {
+  if (status === 'done') return ' status-done'
+  if (status === 'skipped') return ' status-skipped'
+  if (status === 'overdue') return ' status-overdue'
+  return ''
+}
+
+function StepCardBody({
+  step,
+  animals,
+  houseTz,
+  displayTz,
+  badge,
+}: {
+  step: StepView
+  animals: AnimalView[]
+  houseTz: string
+  displayTz: string
+  badge?: string | null
+}) {
+  return (
+    <>
+      {step.status === 'done' && (
+        <span className="step-card-mark" aria-label="выполнено">
+          <IconCheck />
+        </span>
+      )}
+      {step.status === 'skipped' && (
+        <span className="step-card-mark" aria-label="пропущено">
+          <IconSkip />
+        </span>
+      )}
+      {step.status === 'overdue' && (
+        <span className="step-card-mark mark-overdue" aria-label="просрочено">
+          <IconOverdue />
+        </span>
+      )}
+      {badge ? <span className="step-card-badge">{badge}</span> : null}
+      <div className="title">{step.title}</div>
+      <div className="meta">{cardMeta(step, animals, houseTz, displayTz)}</div>
+    </>
+  )
 }
 
 export function DayGrid({
@@ -137,8 +236,18 @@ export function DayGrid({
   const bands = buildBands(steps)
   const gridStartCm = bands[0]?.startCm ?? 4 * 60
   const gridEndCm = bands.at(-1)?.endCm ?? 19 * 60
-  const laid = layoutCards(steps, gridStartCm)
+  const clusters = useMemo(
+    () => buildClusters(placeSteps(steps, gridStartCm)),
+    [steps, gridStartCm],
+  )
   const totalHeight = ((gridEndCm - gridStartCm) / 60) * HOUR_HEIGHT
+
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const expanded = clusters.find((c) => c.id === expandedId) ?? null
+
+  useEffect(() => {
+    setExpandedId(null)
+  }, [steps])
 
   const [liveHm, setLiveHm] = useState(() => houseNowHm(houseTz))
   useEffect(() => {
@@ -148,6 +257,15 @@ export function DayGrid({
     const id = window.setInterval(tick, 30_000)
     return () => window.clearInterval(id)
   }, [houseTz, nowHouseLocal])
+
+  useEffect(() => {
+    if (!expandedId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpandedId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expandedId])
 
   const nowHm = nowHouseLocal ?? liveHm
   const nowCm = careMinutes(nowHm)
@@ -209,59 +327,126 @@ export function DayGrid({
       )}
 
       <div className="cards-layer" style={{ height: totalHeight }}>
-        {laid.map(({ step, top, height, col, cols }) => {
-          const widthPct = 100 / cols
-          const color = colorForAppointment(step.appointment_id)
-          const statusClass =
-            step.status === 'done'
-              ? ' status-done'
-              : step.status === 'skipped'
-                ? ' status-skipped'
-                : step.status === 'overdue'
-                  ? ' status-overdue'
-                  : ''
-          const time = formatStepDisplayTime(step, houseTz, displayTz)
-          const names = animalNamesLine(step.animal_ids, animals)
-          const narrow = cols >= 3
+        {clusters.map((cluster) => {
+          const topStep = cluster.steps[0]
+          const isStack = cluster.steps.length > 1
+          const hidden = cluster.steps.length - 1
+          const peekCount = isStack
+            ? Math.min(STACK_PEEK_MAX, cluster.steps.length - 1)
+            : 0
+          const color = colorForAppointment(topStep.appointment_id)
+          const dimmed = expandedId != null && expandedId !== cluster.id
+
           return (
-            <button
-              key={step.id}
-              type="button"
-              className={`step-card${statusClass}`}
+            <div
+              key={cluster.id}
+              className={`step-stack${dimmed ? ' dimmed' : ''}`}
               style={{
-                top,
-                height,
-                left: `calc(${col * widthPct}% + 4px)`,
-                width: `calc(${widthPct}% - 8px)`,
-                background: color,
+                top: cluster.top,
+                height: CARD_H + peekCount * STACK_PEEK,
+                left: 4,
+                right: 4,
               }}
-              onClick={() => onOpenStep(step.id)}
             >
-              {step.status === 'done' && (
-                <span className="step-card-mark" aria-label="выполнено">
-                  <IconCheck />
-                </span>
-              )}
-              {step.status === 'skipped' && (
-                <span className="step-card-mark" aria-label="пропущено">
-                  <IconSkip />
-                </span>
-              )}
-              {step.status === 'overdue' && (
-                <span
-                  className="step-card-mark mark-overdue"
-                  aria-label="просрочено"
-                >
-                  <IconOverdue />
-                </span>
-              )}
-              <div className="title">{step.title}</div>
-              <div className="meta">{time}</div>
-              {!narrow && names && <div className="meta">{names}</div>}
-            </button>
+              {Array.from({ length: peekCount }, (_, i) => {
+                const depth = peekCount - i
+                const peekStep =
+                  cluster.steps[
+                    Math.min(depth, cluster.steps.length - 1)
+                  ]
+                return (
+                  <div
+                    key={`peek-${depth}`}
+                    className="step-card step-card-peek"
+                    style={{
+                      top: depth * STACK_PEEK,
+                      height: CARD_H,
+                      left: depth * 3,
+                      right: depth * 3,
+                      background: colorForAppointment(peekStep.appointment_id),
+                      zIndex: peekCount - depth + 1,
+                    }}
+                    aria-hidden="true"
+                  />
+                )
+              })}
+              <button
+                type="button"
+                className={`step-card step-card-front${statusClass(topStep.status)}`}
+                style={{
+                  top: 0,
+                  height: CARD_H,
+                  left: 0,
+                  right: 0,
+                  background: color,
+                  zIndex: peekCount + 1,
+                }}
+                onClick={() => {
+                  if (isStack) setExpandedId(cluster.id)
+                  else onOpenStep(topStep.id)
+                }}
+              >
+                <StepCardBody
+                  step={topStep}
+                  animals={animals}
+                  houseTz={houseTz}
+                  displayTz={displayTz}
+                  badge={hidden > 0 ? `+${hidden}` : null}
+                />
+              </button>
+            </div>
           )
         })}
       </div>
+
+      {expanded && (
+        <div
+          className="stack-expand-overlay"
+          role="presentation"
+          onClick={() => setExpandedId(null)}
+        >
+          <div
+            className="stack-expand-panel"
+            role="dialog"
+            aria-label="Назначения в это время"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="stack-expand-header">
+              <span>{appointmentsCountLabel(expanded.steps.length)}</span>
+              <button
+                type="button"
+                className="stack-expand-close"
+                onClick={() => setExpandedId(null)}
+              >
+                Свернуть
+              </button>
+            </div>
+            <div className="stack-expand-list">
+              {expanded.steps.map((step) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={`step-card step-card-expanded${statusClass(step.status)}`}
+                  style={{
+                    background: colorForAppointment(step.appointment_id),
+                  }}
+                  onClick={() => {
+                    setExpandedId(null)
+                    onOpenStep(step.id)
+                  }}
+                >
+                  <StepCardBody
+                    step={step}
+                    animals={animals}
+                    houseTz={houseTz}
+                    displayTz={displayTz}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -273,6 +458,16 @@ function houseNowHm(houseTz: string): string {
     minute: '2-digit',
     hour12: false,
   })
+}
+
+function appointmentsCountLabel(n: number): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return `${n} назначение`
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    return `${n} назначения`
+  }
+  return `${n} назначений`
 }
 
 function IconCheck() {
