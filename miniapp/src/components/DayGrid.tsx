@@ -168,6 +168,17 @@ function statusClass(status: StepView['status']): string {
   return ''
 }
 
+function isOpenStatus(status: StepView['status']): boolean {
+  return status === 'pending' || status === 'overdue'
+}
+
+/** Для лицевой стороны стопки: сначала незакрытые, внутри — порядок как в кластере (по времени). */
+function stackFaceOrder(steps: StepView[]): StepView[] {
+  const open = steps.filter((s) => isOpenStatus(s.status))
+  const closed = steps.filter((s) => !isOpenStatus(s.status))
+  return open.length > 0 ? [...open, ...closed] : [...steps]
+}
+
 function StepCardBody({
   step,
   animals,
@@ -318,7 +329,8 @@ export function DayGrid({
 
       <div className="cards-layer" style={{ height: totalHeight }}>
         {clusters.map((cluster) => {
-          const topStep = cluster.steps[0]
+          const faceSteps = stackFaceOrder(cluster.steps)
+          const topStep = faceSteps[0]
           const isStack = cluster.steps.length > 1
           const hidden = cluster.steps.length - 1
           const peekCount = isStack
@@ -341,9 +353,7 @@ export function DayGrid({
               {Array.from({ length: peekCount }, (_, i) => {
                 const depth = peekCount - i
                 const peekStep =
-                  cluster.steps[
-                    Math.min(depth, cluster.steps.length - 1)
-                  ]
+                  faceSteps[Math.min(depth, faceSteps.length - 1)]
                 return (
                   <div
                     key={`peek-${depth}`}
