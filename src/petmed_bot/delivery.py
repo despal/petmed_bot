@@ -7,8 +7,6 @@ from petmed_core.views import NotificationView
 
 from petmed_bot.texts import (
     ALREADY_MARKED,
-    APP_STUB,
-    BTN_APP,
     BTN_DONE,
     INSIDE,
     INVITE_BAD,
@@ -56,7 +54,7 @@ class MemoryTelegram:
                 text=text,
                 notification_id=notification_id,
                 step_id=step_id,
-                buttons=(BTN_DONE, BTN_APP),
+                buttons=(BTN_DONE,),
             )
         )
 
@@ -115,9 +113,6 @@ class DeliveryLoop:
         if existing is not None and existing.id == user.id:
             return INSIDE
         return INVITE_OK
-
-    def handle_open_app(self) -> str:
-        return APP_STUB
 
     def handle_done(
         self,

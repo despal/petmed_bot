@@ -4,11 +4,9 @@ from petmed_core import Core
 from petmed_core.views import AppointmentView, NotificationView, StepView
 
 BTN_DONE = "Сделано"
-BTN_APP = "Открыть приложение"
 START_TEXT = (
     "Напоминания придут сами. Настройка животных и назначений — в приложении."
 )
-APP_STUB = "Скоро"
 ALREADY_MARKED = "Уже отмечено"
 NO_ACCESS = "Нет доступа"
 MARKED = "Отмечено"

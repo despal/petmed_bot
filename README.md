@@ -27,7 +27,6 @@ pip install -e ".[dev]"
 |---|---|---|
 | `BOT_TOKEN` | бот + API (подпись initData) | токен BotFather |
 | `DATABASE_URL` | бот + API + скрипт | одна БД, по умолчанию `sqlite:///petmed.db` |
-| `WEBAPP_URL` | бот | HTTPS URL Mini App; пусто → кнопка «Скоро» |
 | `BOT_USERNAME` | скрипт invite | имя бота без `@` |
 | `DEV_TELEGRAM_ID` | API | обход initData **только для локальной отладки** |
 
@@ -51,13 +50,12 @@ python -m petmed_api
 ```powershell
 $env:BOT_TOKEN="..."
 $env:DATABASE_URL="sqlite:///petmed.db"
-$env:WEBAPP_URL="https://your-host.example/"   # после деплоя
 python -m petmed_bot.runner
 ```
 
-- `/start` — текст + кнопка приложения  
+- `/start` — текст (без inline-кнопки приложения; вход в Mini App — кнопка меню Telegram)  
 - `/start <token>` — `accept_invite` («Добро пожаловать» / «Ты внутри» / ошибка)  
-- без `WEBAPP_URL` кнопка остаётся заглушкой «Скоро»
+- пуш: текст + «Сделано»  
 
 ### Скрипт приглашения
 
@@ -89,9 +87,9 @@ pytest
 ## Ручной контур (когда есть HTTPS)
 
 1. Скрипт invite → ссылка → `/start` в Telegram.  
-2. `WEBAPP_URL` на ваш HTTPS → кнопка открывает Mini App.  
+2. Mini App открывать через кнопку меню бота в Telegram (BotFather / Menu Button).  
 3. Пояс → дом → животное → назначение → отметка.  
-4. Без invite новый человек в Mini App видит «нет доступа».
+4. Без invite новый человек в Mini App видит «нет доступа».  
 
 ## Ядро (кратко)
 

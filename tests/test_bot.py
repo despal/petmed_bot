@@ -1,7 +1,7 @@
 from datetime import date, time
 
 from petmed_bot.delivery import DeliveryLoop, MemoryTelegram
-from petmed_bot.texts import ALREADY_MARKED, APP_STUB, BTN_APP, BTN_DONE, NO_ACCESS
+from petmed_bot.texts import ALREADY_MARKED, BTN_DONE, NO_ACCESS
 from petmed_core import Core, create_session
 
 from helpers import SAT, bkk
@@ -43,7 +43,6 @@ def test_1_push_due_consumed():
     assert "Ориентир" in msg.text
     assert "Север" in msg.text
     assert BTN_DONE in msg.buttons
-    assert BTN_APP in msg.buttons
     due = core.get_due_notifications()
     assert due == []
     notes = core.get_notifications(house_id=house.id)
@@ -216,11 +215,6 @@ def test_doubler_first_start_welcome_then_normal():
     core.set_doubler(owner.id, house.id, doubler.id)
     again = bot.handle_start("3001", creator_label="1001")
     assert again == "Вы добавлены в дом 1001"
-
-
-def test_open_app_stub():
-    bot = DeliveryLoop(Core(create_session()), MemoryTelegram())
-    assert bot.handle_open_app() == APP_STUB
 
 
 def test_already_marked_is_soft():

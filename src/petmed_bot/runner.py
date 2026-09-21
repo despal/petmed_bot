@@ -13,11 +13,10 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    WebAppInfo,
 )
 
 from petmed_bot.delivery import DeliveryLoop, TelegramSendError
-from petmed_bot.texts import BTN_APP, BTN_DONE, format_telegram_label, reminder_text
+from petmed_bot.texts import BTN_DONE, format_telegram_label, reminder_text
 from petmed_core import Core, create_session
 from petmed_core.timeutil import TICK_INTERVAL
 
@@ -38,15 +37,7 @@ def parse_done_callback(data: str) -> tuple[int, int] | None:
         return None
 
 
-def app_button(webapp_url: str | None) -> InlineKeyboardButton:
-    if webapp_url:
-        return InlineKeyboardButton(text=BTN_APP, web_app=WebAppInfo(url=webapp_url))
-    return InlineKeyboardButton(text=BTN_APP, callback_data="app")
-
-
-def reminder_keyboard(
-    notification_id: int, step_id: int, webapp_url: str | None
-) -> InlineKeyboardMarkup:
+def reminder_keyboard(notification_id: int, step_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -55,15 +46,13 @@ def reminder_keyboard(
                     callback_data=done_callback_data(notification_id, step_id),
                 )
             ],
-            [app_button(webapp_url)],
         ]
     )
 
 
 class AiogramTelegram:
-    def __init__(self, bot: Bot, webapp_url: str | None):
+    def __init__(self, bot: Bot):
         self.bot = bot
-        self.webapp_url = webapp_url
 
     async def send_reminder(
         self, chat_id: str, text: str, notification_id: int, step_id: int
@@ -72,13 +61,13 @@ class AiogramTelegram:
             await self.bot.send_message(
                 chat_id=int(chat_id),
                 text=text,
-                reply_markup=reminder_keyboard(notification_id, step_id, self.webapp_url),
+                reply_markup=reminder_keyboard(notification_id, step_id),
             )
         except Exception as exc:
             raise TelegramSendError(str(exc)) from exc
 
 
-def build_dispatcher(handlers: DeliveryLoop, webapp_url: str | None, bot: Bot | None = None) -> Dispatcher:
+def build_dispatcher(handlers: DeliveryLoop, bot: Bot | None = None) -> Dispatcher:
     dp = Dispatcher()
 
     async def _creator_label(creator_telegram_id: str | None) -> str | None:
@@ -99,15 +88,12 @@ def build_dispatcher(handlers: DeliveryLoop, webapp_url: str | None, bot: Bot | 
 
     @dp.message(CommandStart())
     async def on_start(message: Message, command: CommandObject) -> None:
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[[app_button(webapp_url)]]
-        )
         if command.args:
             if message.from_user is None:
-                await message.answer(handlers.handle_start(), reply_markup=keyboard)
+                await message.answer(handlers.handle_start())
                 return
             text = handlers.handle_start_token(command.args, str(message.from_user.id))
-            await message.answer(text, reply_markup=keyboard)
+            await message.answer(text)
             return
         tid = str(message.from_user.id) if message.from_user else None
         label = None
@@ -117,11 +103,7 @@ def build_dispatcher(handlers: DeliveryLoop, webapp_url: str | None, bot: Bot | 
                 _actor_id, creator_tid = pending
                 label = await _creator_label(creator_tid)
         text = handlers.handle_start(tid, creator_label=label)
-        await message.answer(text, reply_markup=keyboard)
-
-    @dp.callback_query(F.data == "app")
-    async def on_app(callback: CallbackQuery) -> None:
-        await callback.answer(handlers.handle_open_app(), show_alert=True)
+        await message.answer(text)
 
     @dp.callback_query(F.data.startswith("d:"))
     async def on_done(callback: CallbackQuery) -> None:
@@ -179,12 +161,11 @@ async def amain() -> None:
     if not token:
         raise SystemExit("Задайте BOT_TOKEN")
     db_url = os.environ.get("DATABASE_URL", "sqlite:///petmed.db")
-    webapp_url = (os.environ.get("WEBAPP_URL") or "").strip() or None
     core = Core(create_session(db_url))
     bot = Bot(token)
-    gateway = AiogramTelegram(bot, webapp_url)
+    gateway = AiogramTelegram(bot)
     handlers = DeliveryLoop(core, _UnusedPort())
-    dp = build_dispatcher(handlers, webapp_url, bot=bot)
+    dp = build_dispatcher(handlers, bot=bot)
     ticker = asyncio.create_task(_tick_forever(core, gateway))
     try:
         await dp.start_polling(bot)
