@@ -109,55 +109,45 @@ function placeSteps(steps: StepView[], gridStartCm: number): Placed[] {
     .sort((a, b) => a.top - b.top || a.step.id - b.step.id)
 }
 
-/** Connected components by vertical overlap → stacks. */
+function overlaps(a: Placed, b: Placed): boolean {
+  return (
+    a.top < b.top + b.height - OVERLAP_SLACK &&
+    b.top < a.top + a.height - OVERLAP_SLACK
+  )
+}
+
+/**
+ * Стопки по якорю: первая свободная карточка — якорь;
+ * в стопку только те, кто пересекается с якорем (без транзитивной цепи).
+ */
 function buildClusters(placed: Placed[]): Cluster[] {
   if (placed.length === 0) return []
 
-  const parent = placed.map((_, i) => i)
-  const find = (i: number): number => {
-    if (parent[i] !== i) parent[i] = find(parent[i])
-    return parent[i]
-  }
-  const unite = (a: number, b: number) => {
-    const ra = find(a)
-    const rb = find(b)
-    if (ra !== rb) parent[rb] = ra
-  }
+  const used = new Set<number>()
+  const clusters: Cluster[] = []
 
-  const active: number[] = []
   for (let i = 0; i < placed.length; i++) {
-    const item = placed[i]
-    for (let j = active.length - 1; j >= 0; j--) {
-      const prev = placed[active[j]]
-      if (prev.top + prev.height <= item.top + OVERLAP_SLACK) {
-        active.splice(j, 1)
+    if (used.has(i)) continue
+    const anchor = placed[i]
+    const group: Placed[] = [anchor]
+    used.add(i)
+    for (let j = i + 1; j < placed.length; j++) {
+      if (used.has(j)) continue
+      if (overlaps(anchor, placed[j])) {
+        group.push(placed[j])
+        used.add(j)
       }
     }
-    for (const j of active) unite(i, j)
-    active.push(i)
-  }
-
-  const groups = new Map<number, Placed[]>()
-  for (let i = 0; i < placed.length; i++) {
-    const root = find(i)
-    const list = groups.get(root) ?? []
-    list.push(placed[i])
-    groups.set(root, list)
-  }
-
-  return [...groups.values()].map((group) => {
-    const sorted = [...group].sort(
-      (a, b) => a.top - b.top || a.step.id - b.step.id,
-    )
-    const top = sorted[0].top
-    const bottom = Math.max(...sorted.map((g) => g.top + g.height))
-    return {
-      id: sorted.map((g) => g.step.id).join('-'),
-      steps: sorted.map((g) => g.step),
+    const top = group[0].top
+    const bottom = Math.max(...group.map((g) => g.top + g.height))
+    clusters.push({
+      id: group.map((g) => g.step.id).join('-'),
+      steps: group.map((g) => g.step),
       top,
       height: bottom - top,
-    }
-  })
+    })
+  }
+  return clusters
 }
 
 function cardMeta(
